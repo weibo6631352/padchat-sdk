@@ -37,7 +37,7 @@ const autoData = {
 }
 let server = ''
     server = 'ws://127.0.0.1:7777'
-    server = 'ws://52.80.188.251:7777'
+    server = 'ws://52.80.34.207:7780'
 
 try {
   const tmpBuf          = fs.readFileSync('./config.json')
@@ -79,13 +79,13 @@ wx
       logger.error('新建任务失败！', ret)
       return
     }
-    logger.info('新建任务成功, json: ', ret)
+    //logger.info('新建任务成功, json: ', ret)
 
     //先尝试使用断线重连方式登陆
     if (autoData.token) {
       ret = await wx.login('token', autoData)
       if (ret.success) {
-        logger.info('断线重连请求成功！', ret)
+        //logger.info('断线重连请求成功！', ret)
         return
       }
       logger.warn('断线重连请求失败！', ret)
@@ -187,10 +187,10 @@ wx
 
     ret = await wx.getLoginToken()
     if (!ret.success) {
-      logger.warn('获取自动登陆数据未成功！ json:', ret)
+      //logger.warn('获取自动登陆数据未成功！ json:', ret)
       return
     }
-    logger.info('获取自动登陆数据成功, json: ', ret)
+    //logger.info('获取自动登陆数据成功, json: ', ret)
     Object.assign(autoData, { token: ret.data.token })
 
     // NOTE: 这里将设备参数保存到本地，以后再次登录此账号时提供相同参数
@@ -204,13 +204,13 @@ wx
     logger.info('任务实例已关闭！', msg)
   })
   .on('loaded', async () => {
-    logger.info('通讯录同步完毕！')
+    //logger.info('通讯录同步完毕！')
 
     // 主动触发同步消息
     await wx.syncMsg()
 
     const ret = await wx.sendMsg('filehelper', '你登录了！')
-    logger.info('发送信息结果：', ret)
+    //logger.info('发送信息结果：', ret)
   })
   .on('sns', (data, msg) => {
     logger.info('收到朋友圈事件！请查看朋友圈新消息哦！', msg)
@@ -289,6 +289,7 @@ wx
           break
         }
         logger.info('收到来自 %s 的文本消息：', data.fromUser, data.description || data.content)
+        await umf.UserMsgFilter(data)
         if (/ding/.test(data.content)) {
           await wx.sendMsg(data.fromUser, 'dong. receive:' + data.content)
             .then(ret => {
@@ -404,7 +405,7 @@ wx
         break
 
       default:
-        logger.info('收到推送消息：', data)
+        //logger.info('收到推送消息：', data)
         break
     }
   })
