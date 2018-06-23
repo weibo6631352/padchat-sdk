@@ -4,7 +4,7 @@
   // Turns auto fix on save on or off.
   "tslint.autoFixOnSave": true,
   // 文件保存时自动格式化
-  "editor.formatOnSave": true,
+  "editor.formatOnSave": false,
   //Better Align扩展配置
   "alignment.beforeSave": true,
   "alignment.exclude": [
