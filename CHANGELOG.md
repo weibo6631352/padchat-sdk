@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+<a name="0.5.10"></a>
+## [0.5.10](https://github.com/binsee/padchat-sdk/compare/v0.5.9...v0.5.10) (2018-07-31)
+
+
+### Bug Fixes
+
+* 修复群内发送文本消息at成员无效的bug ([27ac206](https://github.com/binsee/padchat-sdk/commit/27ac206))
+
+
+
+<a name="0.5.9"></a>
+## [0.5.9](https://github.com/binsee/padchat-sdk/compare/v0.5.8...v0.5.9) (2018-07-20)
+
+
+
+<a name="0.5.8"></a>
+## [0.5.8](https://github.com/binsee/padchat-sdk/compare/v0.5.7...v0.5.8) (2018-07-20)
+
+
+### Features
+
+* 增加支持发送小程序 ([95668ad](https://github.com/binsee/padchat-sdk/commit/95668ad))
+
+
+
+<a name="0.5.7"></a>
+## [0.5.7](https://github.com/binsee/padchat-sdk/compare/v0.5.6...v0.5.7) (2018-07-16)
+
+
+### Features
+
+* 增加websocket关闭原因参数 ([ac7b14d](https://github.com/binsee/padchat-sdk/commit/ac7b14d))
+
+
+
 <a name="0.5.6"></a>
 ## [0.5.6](https://github.com/binsee/padchat-sdk/compare/v0.5.5...v0.5.6) (2018-06-13)
 
