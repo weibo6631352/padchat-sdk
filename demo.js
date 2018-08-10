@@ -5,6 +5,7 @@ const Padchat = require('./index')
 const fs      = require('fs')
 const util    = require('util')
 const qrcode  = require('qrcode-terminal')
+const umf     = require('./usermsgfilter')
 
 /**
 * 创建日志目录
@@ -37,7 +38,7 @@ const autoData = {
 }
 let server = ''
     server = 'ws://127.0.0.1:7777'
-    server = 'ws://52.80.188.251:7777'
+    server = 'ws://52.80.34.207:7777'
 
 try {
   const tmpBuf          = fs.readFileSync('./config.json')
