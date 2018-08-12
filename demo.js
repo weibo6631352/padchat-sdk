@@ -1,11 +1,15 @@
 'use strict'
 
+var parser = require('xml2js').parseString;
+var sscanf = require('scanf').sscanf;
+var schedule = require("node-schedule");
 const log4js  = require('log4js')
 const Padchat = require('./index')
 const fs      = require('fs')
 const util    = require('util')
 const qrcode  = require('qrcode-terminal')
-const umf     = require('./usermsgfilter')
+
+
 
 /**
 * 创建日志目录
@@ -54,6 +58,9 @@ const wx = new Padchat(server)
 logger.info('当前连接接口服务器为：', server)
 let disconnectCount = 0      // 断开计数
 let connected       = false  // 成功连接标志
+
+var nickname2userid = {}
+var userid2nickname = {}
 
 wx
   .on('close', (code, msg) => {
@@ -172,6 +179,9 @@ wx
   })
   .on('login', async () => {
     logger.info('微信账号登陆成功！')
+	
+
+
     let ret
 
     ret = await wx.getMyInfo()
@@ -179,6 +189,15 @@ wx
 
     // 主动同步通讯录
     await wx.syncContact()
+	selfid = ret.data.userName
+	
+	// 读本地缓存
+	nickname2userid = JSON.parse(fs.readFileSync(selfid+'.txt'))
+	for(var key in nickname2userid){
+		userid2nickname[nickname2userid[key]] = key
+　　}
+	logger.info('读取本地缓存成功！')
+
 
     if (!autoData.wxData) {
       // 如果已经存在设备参数，则不再获取
@@ -255,39 +274,41 @@ wx
     let rawFile
     switch (data.mType) {
       case 2:
-        logger.info('收到推送联系人：%s - %s', data.userName, data.nickName)
+		nickname2userid[data.nickName] = data.userName
+		userid2nickname[data.userName] = data.nickName
+        logger.info('收到推送联系人1111：%s - %s', data.userName, data.nickName)
         break
 
       case 3:
-        logger.info('收到来自 %s 的图片消息，包含图片数据：%s，xml内容：\n%s', data.fromUser, !!data.data, data.content)
-        rawFile = data.data || null
-        logger.info('图片缩略图数据base64尺寸：%d', rawFile.length)
-        await wx.getMsgImage(data)
-          .then(ret => {
-            rawFile = ret.data.image || ''
-            logger.info('获取消息原始图片结果：%s, 获得图片base64尺寸：%d', ret.success, rawFile.length)
-          })
-        logger.info('图片数据base64尺寸：%d', rawFile.length)
-        await wx.sendImage('filehelper', rawFile)
-          .then(ret => {
-            logger.info('转发图片信息给 %s 结果：', 'filehelper', ret)
-          })
-          .catch(e => {
-            logger.warn('转发图片信息异常:', e.message)
-          })
+        //logger.info('收到来自 %s 的图片消息，包含图片数据：%s，xml内容：\n%s', data.fromUser, !!data.data, data.content)
+        //rawFile = data.data || null
+        //logger.info('图片缩略图数据base64尺寸：%d', rawFile.length)
+        //await wx.getMsgImage(data)
+        //  .then(ret => {
+        //    rawFile = ret.data.image || ''
+        //    logger.info('获取消息原始图片结果：%s, 获得图片base64尺寸：%d', ret.success, rawFile.length)
+        //  })
+        //logger.info('图片数据base64尺寸：%d', rawFile.length)
+        //await wx.sendImage('undifne', rawFile)
+        //  .then(ret => {
+        //    logger.info('转发图片信息给 %s 结果：', 'undifne', ret)
+        //  })
+        //  .catch(e => {
+        //    logger.warn('转发图片信息异常:', e.message)
+        //  })
         break
 
       case 43:
-        logger.info('收到来自 %s 的视频消息，包含视频数据：%s，xml内容：\n%s', data.fromUser, !!data.data, data.content)
-        rawFile = data.data || null
-        if (!rawFile) {
-          await wx.getMsgVideo(data)
-            .then(ret => {
-              rawFile = ret.data.video || ''
-              logger.info('获取消息原始视频结果：%s, 获得视频base64尺寸：%d', ret.success, rawFile.length)
-            })
-        }
-        logger.info('视频数据base64尺寸：%d', rawFile.length)
+        //logger.info('收到来自 %s 的视频消息，包含视频数据：%s，xml内容：\n%s', data.fromUser, !!data.data, data.content)
+        //rawFile = data.data || null
+        //if (!rawFile) {
+        //  await wx.getMsgVideo(data)
+        //    .then(ret => {
+        //      rawFile = ret.data.video || ''
+        //      logger.info('获取消息原始视频结果：%s, 获得视频base64尺寸：%d', ret.success, rawFile.length)
+        //    })
+        //}
+        //logger.info('视频数据base64尺寸：%d', rawFile.length)
         break
 
       case 1:
@@ -295,7 +316,7 @@ wx
           break
         }
         logger.info('收到来自 %s 的文本消息：', data.fromUser, data.description || data.content)
-        await umf.UserMsgFilter(data)
+        await UserMsgFilter(data)
         if (/ding/.test(data.content)) {
           await wx.sendMsg(data.fromUser, 'dong. receive:' + data.content)
             .then(ret => {
@@ -313,33 +334,33 @@ wx
         break
 
       case 34:
-        logger.info('收到来自 %s 的语音消息，包含语音数据：%s，xml内容：\n%s', data.fromUser, !!data.data, data.content)
-        // 超过30Kb的语音数据不会包含在推送信息中，需要主动拉取
-        rawFile = data.data || null
-        if (!rawFile) {
-          // BUG: 超过60Kb的语音数据，只能拉取到60Kb，也就是说大约36~40秒以上的语音会丢失后边部分语音内容
-          await wx.getMsgVoice(data)
-            .then(ret => {
-              rawFile = ret.data.voice || ''
-              logger.info('获取消息原始语音结果：%s, 获得语音base64尺寸：%d，拉取到数据尺寸：%d', ret.success, rawFile.length, ret.data.size)
-            })
-        }
-        logger.info('语音数据base64尺寸：%d', rawFile.length)
-        if (rawFile.length > 0) {
-          let   match  = data.content.match(/length="(\d+)"/) || []
-          const length = match[1] || 0
-                match  = data.content.match(/voicelength="(\d+)"/) || []
-          const ms     = match[1] || 0
-          logger.info('语音数据语音长度：%d ms，xml内记录尺寸：%d', ms, length)
+        //logger.info('收到来自 %s 的语音消息，包含语音数据：%s，xml内容：\n%s', data.fromUser, !!data.data, data.content)
+        //// 超过30Kb的语音数据不会包含在推送信息中，需要主动拉取
+        //rawFile = data.data || null
+        //if (!rawFile) {
+        //  // BUG: 超过60Kb的语音数据，只能拉取到60Kb，也就是说大约36~40秒以上的语音会丢失后边部分语音内容
+        //  await wx.getMsgVoice(data)
+        //    .then(ret => {
+        //      rawFile = ret.data.voice || ''
+        //      logger.info('获取消息原始语音结果：%s, 获得语音base64尺寸：%d，拉取到数据尺寸：%d', ret.success, rawFile.length, ret.data.size)
+        //    })
+        //}
+        //logger.info('语音数据base64尺寸：%d', rawFile.length)
+        //if (rawFile.length > 0) {
+        //  let   match  = data.content.match(/length="(\d+)"/) || []
+        //  const length = match[1] || 0
+        //        match  = data.content.match(/voicelength="(\d+)"/) || []
+        //  const ms     = match[1] || 0
+        //  logger.info('语音数据语音长度：%d ms，xml内记录尺寸：%d', ms, length)
 
-          await wx.sendVoice('filehelper', rawFile, ms)
-            .then(ret => {
-              logger.info('转发语音信息给 %s 结果：', 'filehelper', ret)
-            })
-            .catch(e => {
-              logger.warn('转发语音信息异常:', e.message)
-            })
-        }
+          //await wx.sendVoice('filehelper', rawFile, ms)
+          //  .then(ret => {
+          //    logger.info('转发语音信息给 %s 结果：', 'filehelper', ret)
+          //  })
+          //  .catch(e => {
+          //    logger.warn('转发语音信息异常:', e.message)
+          //  })
+        //}
         break
 
       case 49:
@@ -374,7 +395,8 @@ wx
             .catch(e => {
               logger.warn('接收红包异常:', e.message)
             })
-        } else if (data.content.indexOf('<![CDATA[微信转账]]>') > 0) {
+        } else if (data.content.indexOf('<![CDATA[微信转账]]>') > 0) 
+		{
           logger.info('收到来自 %s 的转账：', data.fromUser, data)
           await wx.queryTransfer(data)
             .then(ret => {
@@ -397,8 +419,11 @@ wx
             .catch(e => {
               logger.warn('接受后，查询转账异常:', e.message)
             })
-        } else {
-          logger.info('收到一条来自 %s 的appmsg富媒体消息：', data.fromUser, data)
+        } 
+		else 
+		{
+		  await UserRichMedia(data)
+          //logger.info('收到一条来自 %s 的appmsg富媒体消息：', data.fromUser, data)
         }
         break
 
@@ -455,3 +480,275 @@ process.on('uncaughtException', e => {
 process.on('unhandledRejection', e => {
   logger.error('Main', 'unhandledRejection:', e)
 })
+
+
+
+
+
+
+
+
+
+
+
+
+
+//////我的代码//////////
+
+var selfid = ''
+var users = []
+var userStack = {}  // 推送队列
+var chartroomStack = {}
+
+
+Date.prototype.pattern=function(fmt) {         
+    var o = {         
+    "M+" : this.getMonth()+1, //月份         
+    "d+" : this.getDate(), //日         
+    "h+" : this.getHours()%12 == 0 ? 12 : this.getHours()%12, //小时         
+    "H+" : this.getHours(), //小时         
+    "m+" : this.getMinutes(), //分         
+    "s+" : this.getSeconds(), //秒         
+    "q+" : Math.floor((this.getMonth()+3)/3), //季度         
+    "S" : this.getMilliseconds() //毫秒         
+    };         
+    var week = {         
+    "0" : "/u65e5",         
+    "1" : "/u4e00",         
+    "2" : "/u4e8c",         
+    "3" : "/u4e09",         
+    "4" : "/u56db",         
+    "5" : "/u4e94",         
+    "6" : "/u516d"        
+    };         
+    if(/(y+)/.test(fmt)){         
+        fmt=fmt.replace(RegExp.$1, (this.getFullYear()+"").substr(4 - RegExp.$1.length));         
+    }         
+    if(/(E+)/.test(fmt)){         
+        fmt=fmt.replace(RegExp.$1, ((RegExp.$1.length>1) ? (RegExp.$1.length>2 ? "/u661f/u671f" : "/u5468") : "")+week[this.getDay()+""]);         
+    }         
+    for(var k in o){         
+        if(new RegExp("("+ k +")").test(fmt)){         
+            fmt = fmt.replace(RegExp.$1, (RegExp.$1.length==1) ? (o[k]) : (("00"+ o[k]).substr((""+ o[k]).length)));         
+        }         
+    }         
+    return fmt;         
+}       
+     
+
+async function UserMsgFilter(data) {
+	var userid = data.fromUser
+	var contact = await wx.getContact(userid)
+	var nickName = contact.data.nickName
+	var isUserMsg = !("chatroomOwner" in contact.data)
+	var content = data.content
+
+	// 如果userid不在缓存中，则把更新缓存，并且保存到本地
+	if(!(userid in userid2nickname))
+	{
+		nickname2userid[nickName] = userid
+		userid2nickname[userid] = nickName
+		fs.writeFile(selfid+'.txt', JSON.stringify(nickname2userid),function(err){
+			if(err) console.log('写文件操作失败');
+			else console.log('写文件操作成功');
+		});
+	}
+	
+	if(selfid == userid)
+		return;
+	
+	if(!isUserMsg)
+		return;
+	if(content == "申请管理员"){
+		if(users.indexOf(userid) > -1){
+			wx.sendMsg(userid,'您已经是管理员！',[])
+		}
+		else{
+			users.push(userid)
+			wx.sendMsg(userid, '申请成功！',[])
+		}
+		return;
+	}
+
+    // 判断消息来源
+    if (users.indexOf(userid) > -1) {
+        if(content == "帮助")
+		{
+			wx.sendMsg(userid,'你的微信号与机器人微信号以聊天的方式进行交互，命令的格式要与上边图片的一致，否则可能不认识。 \n命令格式：命令 前n条发链接送给 群1、群2、群3 间隔3分钟 立即 否 \n选项：\n*立即：有其他任务正在执行，是否可以马上执行此任务。  否则排队等待其他任务执行完毕。 \n输入\t查看群内任务 群名称\n查看群内将要执行的所有任务。\n输入\t清空群内任务 群名称\n取消群内掉将要执行的所有任务。\n输入\t 模版  获得标准的命令例子 ',[])
+		}
+		else if(content == "模版")
+		{
+			wx.sendMsg(userid,'命令 前n条链接发送给 群1、群2、群3 间隔3分钟 立即 否',[])
+		}
+		else if(content.indexOf("查看群内任务") == 0)
+		{
+			var spt = content.split(" ")
+			if(spt.length == 2)
+			{
+				var chartroom = spt[1];
+				if(nickname2userid[chartroom] === undefined)
+				{
+					wx.sendMsg(userid,'没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！',[])
+					return
+				}
+				
+				var splitstr = ""
+				for(var i = 0; i < chartroomStack[chartroom].length; i++)
+				{
+					splitstr += i + ' ' + JSON.stringify(Object.keys(chartroomStack[chartroom][i])[0]) + "\n"
+				}
+				wx.sendMsg(userid,splitstr,[])
+			}
+		}
+		else if(content.indexOf("清空群内任务") == 0)
+		{
+			var spt = content.split(" ")
+			if(spt.length == 2)
+			{
+				var chartroom = spt[1];
+				if(nickname2userid[chartroom] === undefined)
+				{
+					wx.sendMsg(userid,'没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！',[])
+					return
+				}
+				for(var i = 0; i < chartroomStack[chartroom].length; i++)
+				{
+					chartroomStack[chartroom][i][Object.keys(chartroomStack[chartroom][i])[0]].cancel();
+				}
+				chartroomStack[chartroom] = []
+				wx.sendMsg(userid, chartroom + ' 清空群内任务成功！',[])
+			}
+		}
+		else 
+		{
+			content = content.trim()
+			content = content.replace("  "," ");   
+			var argv = content.split(" ");
+			if(argv[0] != "命令" || argv.length != 6)
+			{
+				wx.sendMsg(userid,'无效的输入，请按正确的格式输入！\n回复帮助获取帮助。\n回复模版获取模版',[])
+				return;
+			}
+			if (userStack[userid]===undefined) {
+				wx.sendMsg(userid,'请先录入链接，再执行命令！',[])
+				return;
+			}
+			var head = argv[0]
+			var presize = Number(argv[1].replace(/[^0-9]/ig,""));   	// int
+			var charrooms = argv[2].split("、")						
+			var interval = Number(argv[3].replace(/[^0-9]/ig,""));  // float
+			var quick = argv[5] == "是"									// bool
+			
+			if(presize <= 0 || charrooms.length < 1 || interval < 0)
+			{
+				wx.sendMsg(userid,'无效的输入，请按正确的格式输入！\n回复帮助获取帮助。\n回复模版获取模版',[])
+				return;
+			}
+			
+			var cur = new Date();
+			cur.setSeconds(cur.getSeconds() + 3)
+			logger.info(cur.pattern("yyyy-MM-dd HH:mm:ss"))
+			
+			
+			var roomstarts = []
+			for(let j = 0; j < charrooms.length; j++)
+			{
+				var chartroom = charrooms[j]
+				if (chartroomStack[chartroom]===undefined) {
+						chartroomStack[chartroom] = []
+						logger.info('初始化chartroomStack：', chartroom, "成功")
+				}
+				if(chartroomStack[chartroom].length > 0){
+					var predate = new Date(Object.keys(chartroomStack[chartroom][chartroomStack[chartroom].length-1])[0])
+					logger.info("pre "+ typeof(predate) + ""+predate) 
+					logger.info("cur "+ typeof(cur) + ""+cur  )
+					if(!quick && predate.getTime() > cur.getTime()  )
+					{
+						logger.info(chartroom, '进入任务推迟到')
+						logger.info(chartroom, '任务推迟到：',  predate)
+						roomstarts.push(predate)
+					}else{
+						roomstarts.push(cur)
+					}
+				}
+				else{
+						roomstarts.push(cur)
+				}
+			}
+
+			
+
+		
+			var userStackUseridLength = userStack[userid].length;
+			var i=0
+			for(i=0;i<presize && userStackUseridLength > 0 ;i++){
+				var jsonstr = userStack[userid].pop()
+				logger.info("大循环执行次数", i, "任务堆栈个数", userStack[userid].length)
+				parser(jsonstr, function (err, result) {  jsonstr = JSON.stringify(result); });
+				var msgobj = JSON.parse(jsonstr).msg.appmsg[0]; 
+				
+				for(let j = 0; j < charrooms.length; j++)
+				{
+					var starttime = roomstarts[j] ;
+					starttime.setMinutes(starttime.getMinutes() + i * interval)
+					
+					!function(now,curmsg){ 
+						var chartroom = charrooms[j]
+							
+						var job = schedule.scheduleJob(now, function(f){
+							logger.info("执行任务", chartroom, f)
+							var index = chartroomStack[chartroom].indexOf(f)
+							if(index >=0) {chartroomStack[chartroom].splice(index,1);}
+							
+							if(nickname2userid[chartroom] === undefined)
+							{
+								wx.sendMsg(userid,'没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！',[])
+								return
+							}
+							var charroomid = nickname2userid[chartroom]
+							wx.sendAppMsg(charroomid, curmsg)
+						});
+						var jobinfo = {}
+						jobinfo[now]= job
+						chartroomStack[chartroom].push(jobinfo)
+					}(starttime, msgobj);
+				}
+					
+				userStackUseridLength = userStack[userid].length;
+			}
+			wx.sendMsg(userid, "您定时转发了" +i + "条链接！",[])
+		}
+    }
+}
+
+
+async function UserRichMedia(data) {
+	var userid = data.fromUser
+	var contact = await wx.getContact(userid)
+	var nickName = contact.data.nickName
+	var isUserMsg = !("chatroomOwner" in contact.data)
+	var content = data.content
+	
+	if(selfid == userid)
+		return;
+	
+	if(!isUserMsg)
+	{
+		return;
+	}
+	
+	// 判断消息来源
+	if (users.indexOf(userid) > -1) {
+		if (userStack[userid]===undefined) {
+			userStack[userid] = []
+		}
+			
+		if(userStack[userid].length >= 1024)
+		{
+			userStack[userid].shift()
+		}
+		userStack[userid].push(content)
+		logger.info('录入成功！')
+	}
+}
+
