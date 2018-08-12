@@ -636,10 +636,12 @@ async function UserMsgFilter(data) {
 			var head = argv[0]
 			var presize = Number(argv[1].replace(/[^0-9]/ig,""));   	// int
 			var charrooms = argv[2].split("、")						
+
 			var intervalSecond = parseFloat(argv[3].replace(/[^0-9]/ig,"")) * 60;  // float
 			var quick = argv[5] == "是"									// bool
 			
 			if(presize <= 0 || charrooms.length < 1 || intervalSecond < 0)
+
 			{
 				wx.sendMsg(userid,'无效的输入，请按正确的格式输入！\n回复帮助获取帮助。\n回复模版获取模版',[])
 				return;
@@ -682,7 +684,9 @@ async function UserMsgFilter(data) {
 			var userStackUseridLength = userStack[userid].length;
 			var i=0
 			for(i=0;i<presize && userStackUseridLength > 0 ;i++){
+
 				var jsonstr = userStack[userid][userStack[userid].length-1]
+
 				logger.info("大循环执行次数", i, "任务堆栈个数", userStack[userid].length)
 				parser(jsonstr, function (err, result) {  jsonstr = JSON.stringify(result); });
 				var msgobj = JSON.parse(jsonstr).msg.appmsg[0]; 
@@ -690,7 +694,9 @@ async function UserMsgFilter(data) {
 				for(let j = 0; j < charrooms.length; j++)
 				{
 					var starttime = roomstarts[j] ;
+
 					starttime.setSeconds(starttime.getSeconds() + i * intervalSecond)
+
 					
 					!function(now,curmsg){ 
 						var chartroom = charrooms[j]
@@ -705,6 +711,8 @@ async function UserMsgFilter(data) {
 								wx.sendMsg(userid,'没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！',[])
 								return
 							}
+
+
 
 							var charroomid = nickname2userid[chartroom]
 							wx.sendAppMsg(charroomid, curmsg)
