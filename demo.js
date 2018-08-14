@@ -499,6 +499,7 @@ var selfid = ''
 var users = []
 var userStack = {}  // 推送队列
 var chartroomStack = {}
+var chartroomCount = {}
 
 
 Date.prototype.pattern=function(fmt) {         
@@ -595,8 +596,11 @@ async function UserMsgFilter(data) {
 				var splitstr = ""
 				for(var i = 0; i < chartroomStack[chartroom].length; i++)
 				{
-					splitstr += i + ' ' + JSON.stringify(Object.keys(chartroomStack[chartroom][i])[0]) + "\n"
+					//logger.info(Object.keys(chartroomStack[chartroom][i])[0],tmpdate.pattern("yyyy-MM-dd HH:mm:ss"))
+					splitstr += i + ' ' + JSON.stringify(new Date(parseInt(Object.keys(chartroomStack[chartroom][i])[0]))) + "\n"
 				}
+				
+				splitstr+='发送转发总数 ' + chartroomCount[chartroom]
 				wx.sendMsg(userid,splitstr,[])
 			}
 		}
@@ -637,11 +641,14 @@ async function UserMsgFilter(data) {
 			var presize = Number(argv[1].replace(/[^0-9]/ig,""));   	// int
 			var charrooms = argv[2].split("、")						
 
-			var intervalSecond = parseFloat(argv[3].replace(/[^0-9]/ig,"")) * 60;  // float
+			
+			var intervalSecond = 60
+			var intervalSecond_match = argv[3].match(/\d+\.?\d*/);
+			intervalSecond = parseFloat(intervalSecond_match[0] * 60); 
+			
 			var quick = argv[5] == "是"									// bool
 			
 			if(presize <= 0 || charrooms.length < 1 || intervalSecond < 0)
-
 			{
 				wx.sendMsg(userid,'无效的输入，请按正确的格式输入！\n回复帮助获取帮助。\n回复模版获取模版',[])
 				return;
@@ -658,15 +665,15 @@ async function UserMsgFilter(data) {
 				var chartroom = charrooms[j]
 				if (chartroomStack[chartroom]===undefined) {
 						chartroomStack[chartroom] = []
-						logger.info('初始化chartroomStack：', chartroom, "成功")
 				}
+				if (chartroomCount[chartroom]===undefined) {
+						chartroomCount[chartroom] = 0
+				}
+				
 				if(chartroomStack[chartroom].length > 0){
-					var predate = new Date(Object.keys(chartroomStack[chartroom][chartroomStack[chartroom].length-1])[0])
-					logger.info("pre "+ typeof(predate) + ""+predate) 
-					logger.info("cur "+ typeof(cur) + ""+cur  )
+					var predate = new Date(parseInt(Object.keys(chartroomStack[chartroom][chartroomStack[chartroom].length-1])[0]))
 					if(!quick && predate.getTime() > cur.getTime()  )
 					{
-						logger.info(chartroom, '进入任务推迟到')
 						logger.info(chartroom, '任务推迟到：',  predate)
 						roomstarts.push(predate)
 					}else{
@@ -679,48 +686,66 @@ async function UserMsgFilter(data) {
 			}
 
 			
-
-		
 			var userStackUseridLength = userStack[userid].length;
 			var i=0
-			for(i=0;i<presize && userStackUseridLength > 0 ;i++){
-
+			for(i=0;i<presize && userStackUseridLength > 0 ;i++)
+			{
 				var jsonstr = userStack[userid][userStack[userid].length-1]
-
-				logger.info("大循环执行次数", i, "任务堆栈个数", userStack[userid].length)
 				parser(jsonstr, function (err, result) {  jsonstr = JSON.stringify(result); });
 				var msgobj = JSON.parse(jsonstr).msg.appmsg[0]; 
 				
 				for(let j = 0; j < charrooms.length; j++)
 				{
-					var starttime = roomstarts[j] ;
-
-					starttime.setSeconds(starttime.getSeconds() + i * intervalSecond)
-
+					var starttime =  new Date(roomstarts[j].getTime() + (i * intervalSecond) * 1000);
+					logger.info(starttime)
 					
-					!function(now,curmsg){ 
+					var fins = false
+					if( (i == presize -1 || userStackUseridLength == 1)  && j ==  charrooms.length -1 )
+						fins = true
+
+					!function(now,curmsg, finsin){ 
 						var chartroom = charrooms[j]
+						var jobinfo = {}	
+						jobinfo[now.getTime()] = schedule.scheduleJob(now, function(f){
+							var time = f.getTime()
+							logger.info("执行任务", chartroom, time)
 							
-						var job = schedule.scheduleJob(now, function(f){
-							logger.info("执行任务", chartroom, f)
-							var index = chartroomStack[chartroom].indexOf(f)
-							if(index >=0) {chartroomStack[chartroom].splice(index,1);}
+							
+							var index = -1
+							var removejob = {};
+							for(var i = 0; i < chartroomStack[chartroom].length; i++)
+							{
+								if(Object.keys(chartroomStack[chartroom][i])[0] == time)
+								{
+									removejob [time] = chartroomStack[chartroom][i][time]
+									index = i;
+								}
+							}
+							
+							if(-1 != index)
+							{
+								logger.info("完成任务", chartroom, time)
+								chartroomStack[chartroom].splice(index,1);
+							}
+								
 							
 							if(nickname2userid[chartroom] === undefined)
 							{
 								wx.sendMsg(userid,'没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！',[])
 								return
 							}
-
-
-
+							
 							var charroomid = nickname2userid[chartroom]
 							wx.sendAppMsg(charroomid, curmsg)
+							
+							if(finsin)
+								wx.sendMsg(userid,"此命令执行完毕！\n" + JSON.stringify(new Date(time)),[])
 						});
-						var jobinfo = {}
-						jobinfo[now]= job
+						
 						chartroomStack[chartroom].push(jobinfo)
-					}(starttime, msgobj);
+					}(starttime, msgobj, fins);
+					
+					chartroomCount[chartroom]++;
 				}
 				userStack[userid].pop()
 				userStackUseridLength = userStack[userid].length;
