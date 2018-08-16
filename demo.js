@@ -704,8 +704,7 @@ async function UserMsgFilter(data) {
 				
 				for(let j = 0; j < charrooms.length; j++)
 				{
-					var waittime =  i * j*1600 ;
-					if(i != 0) waittime +=  offsettime
+					var waittime =  i*charrooms.length*1600 + j*1600 + offsettime*i;
 					waittime += Math.ceil(Math.random()*1000)
 					var starttime =  new Date(cur.getTime() + waittime);
 					
@@ -730,7 +729,7 @@ async function UserMsgFilter(data) {
 								
 							
 							wx.sendAppMsg(charroomid, curmsg)
-							logger.info("执行任务", chartroom, charroomid, time, chartroomStack[chartroom].length, curmsg.title)
+							logger.info("执行任务", chartroom, charroomid, new Date(time), chartroomStack[chartroom].length, curmsg.title)
 							
 							
 							if(finsin)
@@ -741,7 +740,7 @@ async function UserMsgFilter(data) {
 					}(starttime, msgobj, fins);
 					
 					chartroomCount[chartroomj]++;
-					logger.info("发布任务", chartroomj, starttime.getTime(), chartroomStack[chartroom].length, msgobj.title);
+					logger.info("发布任务", chartroomj, starttime, chartroomStack[chartroom].length, msgobj.title);
 				}
 				userStack[userid].pop()
 				userStackUseridLength = userStack[userid].length;
