@@ -550,14 +550,14 @@ async function UserMsgFilter(data) {
 		nickname2userid[nickName] = userid
 		userid2nickname[userid] = nickName
 		fs.writeFile(selfid+'.txt', JSON.stringify(nickname2userid),function(err){
-			if(err) console.log('写文件操作失败');
-			else console.log('写文件操作成功');
+			if(err) logger.info('写文件操作失败');
+			else logger.info('写文件操作成功');
 		});
 	}
 	
 	if(selfid == userid)
 		return;
-	
+
 	if(!isUserMsg)
 		return;
 	if(content == "申请管理员"){
@@ -593,6 +593,14 @@ async function UserMsgFilter(data) {
 					return
 				}
 				
+				var oldtime = new Date
+				var objectkeys = Object.keys(chartroomStack[chartroom])
+				var objectkeysstep = objectkeys.length
+				while(objectkeysstep--){
+					if(objectkeys[objectkeysstep][0] < oldtime.getTime() -4000)
+						chartroomStack[chartroom].splice(objectkeysstep,1);
+				}
+
 				var splitstr = ""
 				for(var i = 0; i < chartroomStack[chartroom].length; i++)
 				{
@@ -656,7 +664,7 @@ async function UserMsgFilter(data) {
 			
 			var cur = new Date();
 			cur.setSeconds(cur.getSeconds() + 3)
-			logger.info(cur.pattern("yyyy-MM-dd HH:mm:ss"))
+			//logger.info(cur.pattern("yyyy-MM-dd HH:mm:ss"))
 			
 			
 			var roomstarts = []
@@ -684,6 +692,15 @@ async function UserMsgFilter(data) {
 						roomstarts.push(cur)
 				}
 			}
+			
+			
+			var objectkeys = Object.keys(chartroomStack[chartroom])
+			var objectkeysstep = objectkeys.length
+			while(objectkeysstep--){
+				if(objectkeys[objectkeysstep][0] < cur.getTime() -4000)
+					chartroomStack[chartroom].splice(objectkeysstep,1);
+			}
+
 
 			
 			var userStackUseridLength = userStack[userid].length;
@@ -696,56 +713,57 @@ async function UserMsgFilter(data) {
 				
 				for(let j = 0; j < charrooms.length; j++)
 				{
-					var starttime =  new Date(roomstarts[j].getTime() + (i * intervalSecond) * 1000);
-					logger.info(starttime)
+					var starttime =  new Date(roomstarts[j].getTime() + (i * intervalSecond) * 1000 + j*1600);
 					
 					var fins = false
 					if( (i == presize -1 || userStackUseridLength == 1)  && j ==  charrooms.length -1 )
 						fins = true
-
-					!function(now,curmsg, finsin){ 
-						var chartroom = charrooms[j]
+					var chartroomj = charrooms[j]
+					!function(now,parmarmsg, finsin){ 
+						var chartroom = chartroomj
+						var curmsg =  JSON.parse(JSON.stringify(parmarmsg));
+						
+						var charroomid = nickname2userid[chartroom]
+						if(charroomid === undefined)
+						{
+							wx.sendMsg(userid,'没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！',[])
+							return
+						}
+						
 						var jobinfo = {}	
 						jobinfo[now.getTime()] = schedule.scheduleJob(now, function(f){
 							var time = f.getTime()
-							logger.info("执行任务", chartroom, time)
-							
-							
-							var index = -1
-							var removejob = {};
-							for(var i = 0; i < chartroomStack[chartroom].length; i++)
-							{
-								if(Object.keys(chartroomStack[chartroom][i])[0] == time)
-								{
-									removejob [time] = chartroomStack[chartroom][i][time]
-									index = i;
-								}
-							}
-							
-							if(-1 != index)
-							{
-								logger.info("完成任务", chartroom, time)
-								chartroomStack[chartroom].splice(index,1);
-							}
+							//var index = -1
+							//var removejob = {};
+							//for(var k = 0; k < chartroomStack[chartroom].length; k++)
+							//{
+							//	if(Object.keys(chartroomStack[chartroom][k])[0] == time)
+							//	{
+							//		removejob [time] = chartroomStack[chartroom][k][time]
+							//		index = k;
+							//	}
+							//}
+							//
+							//if(-1 != index)
+							//{
+							//	chartroomStack[chartroom].splice(index,1);
+							//	logger.info("完成任务", chartroom, time, chartroomStack[chartroom].length, curmsg.title)
+							//}
 								
 							
-							if(nickname2userid[chartroom] === undefined)
-							{
-								wx.sendMsg(userid,'没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！',[])
-								return
-							}
-							
-							var charroomid = nickname2userid[chartroom]
 							wx.sendAppMsg(charroomid, curmsg)
+							logger.info("执行任务", chartroom, charroomid, time, chartroomStack[chartroom].length, curmsg.title)
+							
 							
 							if(finsin)
-								wx.sendMsg(userid,"此命令执行完毕！\n" + JSON.stringify(new Date(time)),[])
+								wx.sendMsg(userid,"此命令执行完毕！\n" + JSON.stringify(new Date(time)) ,[])
 						});
 						
 						chartroomStack[chartroom].push(jobinfo)
 					}(starttime, msgobj, fins);
 					
-					chartroomCount[chartroom]++;
+					chartroomCount[chartroomj]++;
+					logger.info("发布任务", chartroomj, starttime.getTime(), chartroomStack[chartroom].length, msgobj.title);
 				}
 				userStack[userid].pop()
 				userStackUseridLength = userStack[userid].length;
