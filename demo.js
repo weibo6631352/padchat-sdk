@@ -577,11 +577,11 @@ async function UserMsgFilter(data) {
     if (users.indexOf(userid) > -1) {
         if(content == "帮助")
 		{
-			wx.sendMsg(userid,'你的微信号与机器人微信号以聊天的方式进行交互，命令的格式要与上边图片的一致，否则可能不认识。 \n命令格式：命令 前n条发链接送给 群1、群2、群3 间隔3分钟 立即 否 \n选项：\n*立即：有其他任务正在执行，是否可以马上执行此任务。  否则排队等待其他任务执行完毕。 \n输入\t查看群内任务 群名称\n查看群内将要执行的所有任务。\n输入\t清空群内任务 群名称\n取消群内掉将要执行的所有任务。\n输入\t 模版  获得标准的命令例子 ',[])
+			wx.sendMsg(userid,'你的微信号与机器人微信号以聊天的方式进行交互，命令的格式要与上边图片的一致，否则可能不认识。 \n命令格式：命令 前n条发链接送给 群1,群2,群3 间隔3分钟 立即 否 \n选项：\n*立即：有其他任务正在执行，是否可以马上执行此任务。  否则排队等待其他任务执行完毕。 \n输入\t查看群内任务 群名称\n查看群内将要执行的所有任务。\n输入\t清空群内任务 群名称\n取消群内掉将要执行的所有任务。\n输入\t 模版  获得标准的命令例子 ',[])
 		}
 		else if(content == "模版")
 		{
-			wx.sendMsg(userid,'命令 前n条链接发送给 群1、群2、群3 间隔3分钟 立即 否',[])
+			wx.sendMsg(userid,'命令 前n条链接发送给 群1,群2,群3 间隔3分钟 立即 否',[])
 		}
 		else if(content.indexOf("查看群内任务") == 0)
 		{
@@ -649,7 +649,7 @@ async function UserMsgFilter(data) {
 			}
 			var head = argv[0]
 			var presize = Number(argv[1].replace(/[^0-9]/ig,""));   	// int
-			var charrooms = argv[2].split("、")						
+			var charrooms = argv[2].split(",")						
 
 			
 			var intervalSecond = 60
@@ -680,6 +680,14 @@ async function UserMsgFilter(data) {
 						chartroomCount[chartroom] = 0
 				}
 				
+				var objectkeys = Object.keys(chartroomStack[chartroom])
+				var objectkeysstep = objectkeys.length
+				while(objectkeysstep--){
+					if(objectkeys[objectkeysstep][0] < cur.getTime() -4000)
+						chartroomStack[chartroom].splice(objectkeysstep,1);
+				}
+				logger.info('聊天室',chartroom,'任务数量', chartroomStack[chartroom].length)
+				
 				if(chartroomStack[chartroom].length > 0){
 					var predate = new Date(parseInt(Object.keys(chartroomStack[chartroom][chartroomStack[chartroom].length-1])[0]))
 					if(!quick && predate.getTime() > cur.getTime()  )
@@ -696,12 +704,7 @@ async function UserMsgFilter(data) {
 			}
 			
 			
-			var objectkeys = Object.keys(chartroomStack[chartroom])
-			var objectkeysstep = objectkeys.length
-			while(objectkeysstep--){
-				if(objectkeys[objectkeysstep][0] < cur.getTime() -4000)
-					chartroomStack[chartroom].splice(objectkeysstep,1);
-			}
+
 
 
 			
@@ -735,22 +738,6 @@ async function UserMsgFilter(data) {
 						var jobinfo = {}	
 						jobinfo[now.getTime()] = schedule.scheduleJob(now, function(f){
 							var time = f.getTime()
-							//var index = -1
-							//var removejob = {};
-							//for(var k = 0; k < chartroomStack[chartroom].length; k++)
-							//{
-							//	if(Object.keys(chartroomStack[chartroom][k])[0] == time)
-							//	{
-							//		removejob [time] = chartroomStack[chartroom][k][time]
-							//		index = k;
-							//	}
-							//}
-							//
-							//if(-1 != index)
-							//{
-							//	chartroomStack[chartroom].splice(index,1);
-							//	logger.info("完成任务", chartroom, time, chartroomStack[chartroom].length, curmsg.title)
-							//}
 								
 							
 							wx.sendAppMsg(charroomid, curmsg)
