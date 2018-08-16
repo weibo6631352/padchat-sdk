@@ -577,11 +577,11 @@ async function UserMsgFilter(data) {
     if (users.indexOf(userid) > -1) {
         if(content == "帮助")
 		{
-			wx.sendMsg(userid,'你的微信号与机器人微信号以聊天的方式进行交互，命令的格式要与上边图片的一致，否则可能不认识。 \n命令格式：命令 前n条发链接送给 群1,群2,群3 间隔3分钟 立即 否 \n选项：\n*立即：有其他任务正在执行，是否可以马上执行此任务。  否则排队等待其他任务执行完毕。 \n输入\t查看群内任务 群名称\n查看群内将要执行的所有任务。\n输入\t清空群内任务 群名称\n取消群内掉将要执行的所有任务。\n输入\t 模版  获得标准的命令例子 ',[])
+			wx.sendMsg(userid,'你的微信号与机器人微信号以聊天的方式进行交互，命令的格式要与上边图片的一致，否则可能不认识。 \n命令格式：命令 前n条发链接送给 群1,群2,群3 间隔3分钟\n选项：\n*立即：有其他任务正在执行，是否可以马上执行此任务。  否则排队等待其他任务执行完毕。 \n输入\t查看群内任务 群名称\n查看群内将要执行的所有任务。\n输入\t清空群内任务 群名称\n取消群内掉将要执行的所有任务。\n输入\t 模版  获得标准的命令例子 ',[])
 		}
 		else if(content == "模版")
 		{
-			wx.sendMsg(userid,'命令 前n条链接发送给 群1,群2,群3 间隔3分钟 立即 否',[])
+			wx.sendMsg(userid,'命令 前n条链接发送给 群1,群2,群3 间隔3分钟',[])
 		}
 		else if(content.indexOf("查看群内任务") == 0)
 		{
@@ -656,7 +656,6 @@ async function UserMsgFilter(data) {
 			var intervalSecond_match = argv[3].match(/\d+\.?\d*/);
 			intervalSecond = parseFloat(intervalSecond_match[0] * 60); 
 			
-			var quick = argv[5] == "是"									// bool
 			
 			if(presize <= 0 || charrooms.length < 1 || intervalSecond < 0)
 			{
@@ -669,7 +668,6 @@ async function UserMsgFilter(data) {
 			//logger.info(cur.pattern("yyyy-MM-dd HH:mm:ss"))
 			
 			
-			var roomstarts = []
 			for(let j = 0; j < charrooms.length; j++)
 			{
 				var chartroom = charrooms[j]
@@ -687,20 +685,6 @@ async function UserMsgFilter(data) {
 						chartroomStack[chartroom].splice(objectkeysstep,1);
 				}
 				logger.info('聊天室',chartroom,'任务数量', chartroomStack[chartroom].length)
-				
-				if(chartroomStack[chartroom].length > 0){
-					var predate = new Date(parseInt(Object.keys(chartroomStack[chartroom][chartroomStack[chartroom].length-1])[0]))
-					if(!quick && predate.getTime() > cur.getTime()  )
-					{
-						logger.info(chartroom, '任务推迟到：',  predate)
-						roomstarts.push(predate)
-					}else{
-						roomstarts.push(cur)
-					}
-				}
-				else{
-						roomstarts.push(cur)
-				}
 			}
 			
 			
@@ -709,6 +693,8 @@ async function UserMsgFilter(data) {
 
 			
 			var userStackUseridLength = userStack[userid].length;
+			var offsettime = intervalSecond * 1000 - 1600 * charrooms.length;
+			if(offsettime < 0) offsettime = 0;
 			var i=0
 			for(i=0;i<presize && userStackUseridLength > 0 ;i++)
 			{
@@ -718,7 +704,10 @@ async function UserMsgFilter(data) {
 				
 				for(let j = 0; j < charrooms.length; j++)
 				{
-					var starttime =  new Date(roomstarts[j].getTime() + (i * intervalSecond) * 1000 + j*1600);
+					var waittime =  i * j*1600 ;
+					if(i != 0) waittime +=  offsettime
+					waittime += Math.ceil(Math.random()*1000)
+					var starttime =  new Date(cur.getTime() + waittime);
 					
 					var fins = false
 					if( (i == presize -1 || userStackUseridLength == 1)  && j ==  charrooms.length -1 )
