@@ -538,6 +538,7 @@ Date.prototype.pattern=function(fmt) {
      
 
 async function UserMsgFilter(data) {
+	logger.info('开始解析指令');
 	var userid = data.fromUser
 	var contact = await wx.getContact(userid)
 	var nickName = contact.data.nickName
@@ -560,6 +561,7 @@ async function UserMsgFilter(data) {
 
 	if(!isUserMsg)
 		return;
+	logger.info('审核权限');
 	if(content == "申请管理员"){
 		if(users.indexOf(userid) > -1){
 			wx.sendMsg(userid,'您已经是管理员！',[])
@@ -775,6 +777,7 @@ async function UserMsgFilter(data) {
 
 
 async function UserRichMedia(data) {
+	logger.info('收到app链接')
 	var userid = data.fromUser
 	var contact = await wx.getContact(userid)
 	var nickName = contact.data.nickName
@@ -788,7 +791,7 @@ async function UserRichMedia(data) {
 	{
 		return;
 	}
-	
+	logger.info('审核权限')
 	// 判断消息来源
 	if (users.indexOf(userid) > -1) {
 		if (userStack[userid]===undefined) {
