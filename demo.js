@@ -638,7 +638,7 @@ async function UserMsgFilter(data) {
 			content = content.trim()
 			content = content.replace("  "," ");   
 			var argv = content.split(" ");
-			if(argv[0] != "命令" || argv.length != 6)
+			if(argv[0] != "命令" || argv.length != 4)
 			{
 				wx.sendMsg(userid,'无效的输入，请按正确的格式输入！\n回复帮助获取帮助。\n回复模版获取模版',[])
 				return;
@@ -659,7 +659,7 @@ async function UserMsgFilter(data) {
 			
 			if(presize <= 0 || charrooms.length < 1 || intervalSecond < 0)
 			{
-				wx.sendMsg(userid,'无效的输入，请按正确的格式输入！\n回复帮助获取帮助。\n回复模版获取模版',[])
+				wx.sendMsg(userid,presize+charrooms.length+intervalSecond+'无效的输入，请按正确的格式输入！\n回复帮助获取帮助。\n回复模版获取模版',[])
 				return;
 			}
 			
