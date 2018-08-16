@@ -536,6 +536,14 @@ Date.prototype.pattern=function(fmt) {
     return fmt;         
 }       
      
+function GetChinese(strValue) {  
+    if(strValue!= null && strValue!= ""){  
+        var reg = /[\u4e00-\u9fa5]/g;   
+        return strValue.match(reg).join("");  
+    }  
+    else  
+        return "";  
+}  
 
 async function UserMsgFilter(data) {
 	logger.info('开始解析指令');
@@ -649,8 +657,44 @@ async function UserMsgFilter(data) {
 			}
 			var head = argv[0]
 			var presize = Number(argv[1].replace(/[^0-9]/ig,""));   	// int
-			var charrooms = argv[2].split(",")						
-
+			
+			
+			var charrooms ;
+			logger.info("聊天室名字类型", typeof(argv[2]))
+			if(argv[2].indexOf(',')>-1)
+			{
+				logger.info("聊天室逗号模式分割")
+				charrooms = argv[2].split(",")	
+			}	
+			else if(argv[2].indexOf('-')>-1)
+			{
+				logger.info("聊天室格式化分割")
+				
+				charrooms = []
+				var fmtsplit = argv[2].split("-")
+				
+				
+				var min = Number(fmtsplit[0].replace(/[^0-9]/ig,""))
+				var tmphead = fmtsplit[0]
+				var max = Number(fmtsplit[1])
+				var roomhead = GetChinese(fmtsplit[0])
+				for(var i = min; i <= max; i++)
+				{
+					var roomindex = ''
+					if(i<10) roomindex += '0'
+					roomindex +=i.toString()
+					logger.info(roomindex)
+					charrooms.push(roomhead+roomindex)
+				}
+			}
+			else
+			{
+				logger.info("聊天室默认分割")
+				charrooms = []
+				charrooms.push(argv[2])
+			}
+				
+			
 			
 			var intervalSecond = 60
 			var intervalSecond_match = argv[3].match(/\d+\.?\d*/);
