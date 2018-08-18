@@ -545,6 +545,18 @@ function GetChinese(strValue) {
         return "";  
 }  
 
+function FindMinCount(linkcountvec) {  
+	var minCount=99999999;  
+	for (var i=1;i<linkcountvec.length;i++)  
+	{  
+		if(linkcountvec[i].count<minCount)  
+		{  
+			minCount=linkcountvec[i].count;  
+		}  
+	}  
+	return minCount
+}
+
 async function UserMsgFilter(data) {
 	logger.info('开始解析指令');
 	var userid = data.fromUser
@@ -710,7 +722,7 @@ async function UserMsgFilter(data) {
 			}
 				
 			
-			
+			// 初始化参数
 			var intervalSecond = 60
 			var intervalSecond_match = argv[3].match(/\d+\.?\d*/);
 			intervalSecond = parseFloat(intervalSecond_match[0] * 60); 
@@ -722,12 +734,13 @@ async function UserMsgFilter(data) {
 				return;
 			}
 			
+			// 初始化时间
 			var cur = new Date();
 			logger.info(cur.pattern("yyyy-MM-dd HH:mm:ss"))
 			cur.setSeconds(cur.getSeconds() + 3)
 			
 			
-			
+			// 删除过期命令
 			for(let j = 0; j < charrooms.length; j++)
 			{
 				var chartroom = charrooms[j]
@@ -748,35 +761,116 @@ async function UserMsgFilter(data) {
 			}
 			
 			
-
-
-
-			
-			var userStackUseridLength = userStack[userid].length;
+			var linksize = Math.min(presize,userStack[userid].length)
 			var sleeptime = 5000;
-			var offsettime = intervalSecond * 1000 - sleeptime * charrooms.length;
+			var offsettime = intervalSecond * 1000 - sleeptime * linksize;
 			if(offsettime < 0) offsettime = 0;
-			var i=0
-			for(i=0;i<presize && userStackUseridLength > 0 ;i++)
+			logger.info("间隔时间：", offsettime)
+			
+			if(linksize < 1)
 			{
-				var jsonstr = userStack[userid][userStack[userid].length-1]
-				parser(jsonstr, function (err, result) {  jsonstr = JSON.stringify(result); });
-				var msgobj = JSON.parse(jsonstr).msg.appmsg[0]; 
-				
-				for(let j = 0; j < charrooms.length; j++)
+				wx.sendMsg(userid,'您录入的链接数量小于1 ，请录入后重新执行命令！',[])
+				return
+			}
+			
+			// 初始化 当前链接数组
+			var curlinkvec = []
+			for(var j = 0; j < linksize; j++)
+			{
+				curlinkvec.push(userStack[userid].pop())
+			}
+			logger.info('连接数量',curlinkvec.length,linksize, '任务数量')
+			
+			// 全局连接索引列表，记录连接的转发次数
+			var linkcountvec = []
+			for(var j = 0; j < linksize; j++)
+			{
+				var linkcount = {};
+				linkcount.index = j;
+				linkcount.count = 0;
+				linkcountvec.push(linkcount)
+			}
+			logger.info('全局连接索引列表',linkcountvec)
+			
+			// 每个聊天室设置保存一个链接列表，记录连接的转发次数
+			var charoomlinkcountvec = {}
+			for(var i = 0; i<charrooms.length; i++)
+			{
+				var tmpvec = []
+				for(var j = 0; j < linksize; j++)
 				{
-					var waittime =  i*charrooms.length*sleeptime + j*sleeptime + offsettime*i;
+					var chartroomlinkcount  = {};
+					chartroomlinkcount.index = j;
+					chartroomlinkcount.count = 0;
+					tmpvec.push(chartroomlinkcount)
+				}
+				charoomlinkcountvec[charrooms[i]] = tmpvec
+			}
+			logger.info('聊天室连接索引列表',charoomlinkcountvec)
+
+			if (!Array.prototype.shuffle) {
+					Array.prototype.shuffle = function() {
+						for(var j, x, i = this.length; i; j = parseInt(Math.random() * i), x = this[--i], this[i] = this[j], this[j] = x);
+						return this;
+					};
+			}
+			
+			for(var linkstep = 0; linkstep < linksize; linkstep++)
+			{
+				for(var i=0; i<charrooms.length; i++)
+				{
+					var chartroomj = charrooms[i]
+					linkcountvec.shuffle();
+					
+					
+					// 找出全局连接数组中最小的
+					var minCount=FindMinCount(linkcountvec);  
+					
+					// 找出全局数组中最小的几个
+					var minlinkvec = []
+					for(var j = 0; j < linkcountvec.length; j++)
+					{
+						if(linkcountvec[j].count <= minCount)
+						{
+							minlinkvec.push(linkcountvec[j])
+						}
+					}
+					
+					var jsonstr
+					var chartroommincount = FindMinCount(charoomlinkcountvec[chartroomj])
+					var isfindminlink = false
+					for(var j = 0; j < minlinkvec.length; j++)
+					{
+						for(var k = 0; k < charoomlinkcountvec[chartroomj].length; k++)
+						{
+							if(charoomlinkcountvec[chartroomj][k].count <= chartroommincount
+								&&minlinkvec[j].index == charoomlinkcountvec[chartroomj][k].index)
+							{
+								jsonstr = curlinkvec[minlinkvec[j].index]
+								parser(jsonstr, function (err, result) {  jsonstr = JSON.stringify(result); });
+								minlinkvec[j].count++;
+								charoomlinkcountvec[chartroomj][k].count++;
+								isfindminlink = true
+								break
+							}
+						}
+						if(isfindminlink == true)
+							break
+					}
+					//logger.info("jsonstr", jsonstr)
+					var msgobj = JSON.parse(jsonstr).msg.appmsg[0]; 
+					
+					
 					var randomtime = Math.ceil(Math.random()*4000)
+					var waittime =  i*sleeptime + offsettime*linkstep;
 					waittime = waittime - randomtime/2 + randomtime
 					var starttime =  new Date(cur.getTime() + waittime);
 					
 					var fins = false
-					if( (i == presize -1 || userStackUseridLength == 1)  && j ==  charrooms.length -1 )
+					if(i ==  charrooms.length -1 && linkstep == linksize -1)
 						fins = true
-					var chartroomj = charrooms[j]
-					logger.info("即将发布任务")
+					
 					!function(now,parmarmsg, finsin){ 
-						logger.info("进入闭包")
 						var chartroom = chartroomj
 						var curmsg =  JSON.parse(JSON.stringify(parmarmsg));
 						
@@ -807,10 +901,8 @@ async function UserMsgFilter(data) {
 					chartroomCount[chartroomj]++;
 					logger.info("发布任务", chartroomj, starttime.pattern("yyyy-MM-dd HH:mm:ss"), chartroomStack[chartroom].length, msgobj.title);
 				}
-				userStack[userid].pop()
-				userStackUseridLength = userStack[userid].length;
 			}
-			wx.sendMsg(userid, "您定时转发了" +i + "条链接！",[])
+			wx.sendMsg(userid, "您定时转发了" +linksize + "条链接！",[])
 		}
     }
 }
