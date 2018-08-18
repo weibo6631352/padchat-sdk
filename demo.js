@@ -737,7 +737,7 @@ async function UserMsgFilter(data) {
 
 			
 			var userStackUseridLength = userStack[userid].length;
-			var offsettime = intervalSecond * 1000 - 1600 * charrooms.length;
+			var offsettime = intervalSecond * 1000 - 3000 * charrooms.length;
 			if(offsettime < 0) offsettime = 0;
 			var i=0
 			for(i=0;i<presize && userStackUseridLength > 0 ;i++)
@@ -748,8 +748,8 @@ async function UserMsgFilter(data) {
 				
 				for(let j = 0; j < charrooms.length; j++)
 				{
-					var waittime =  i*charrooms.length*1600 + j*1600 + offsettime*i;
-					waittime += Math.ceil(Math.random()*1000)
+					var waittime =  i*charrooms.length*3000 + j*3000 + offsettime*i;
+					waittime += Math.ceil(Math.random()*4000)
 					var starttime =  new Date(cur.getTime() + waittime);
 					
 					var fins = false
