@@ -585,11 +585,11 @@ async function UserMsgFilter(data) {
     if (users.indexOf(userid) > -1) {
         if(content == "帮助")
 		{
-			wx.sendMsg(userid,'你的微信号与机器人微信号以聊天的方式进行交互，命令的格式要与上边图片的一致，否则可能不认识。 \n命令格式：命令 前n条发链接送给 群1,群2,群3 间隔3分钟\n选项：\n*立即：有其他任务正在执行，是否可以马上执行此任务。  否则排队等待其他任务执行完毕。 \n输入\t查看群内任务 群名称\n查看群内将要执行的所有任务。\n输入\t清空群内任务 群名称\n取消群内掉将要执行的所有任务。\n输入\t 模版  获得标准的命令例子 ',[])
+			wx.sendMsg(userid,'你的微信号与机器人微信号以聊天的方式进行交互，命令的格式要与上边图片的一致，否则可能不认识。 \n命令格式：\n命令 前n条发链接送给 群1,群2,群3 间隔3分钟\n命令 前n条发链接送给 群聊01-10 间隔3分钟\n选项：\n*立即：有其他任务正在执行，排队等待其他任务执行完毕。 \n输入\t查看群内任务 群名称\n查看群内将要执行的所有任务。\n输入\t清空群内任务 群名称\n取消群内掉将要执行的所有任务。\n输入\t 模版  获得标准的命令例子 ',[])
 		}
 		else if(content == "模版")
 		{
-			wx.sendMsg(userid,'命令 前n条链接发送给 群1,群2,群3 间隔3分钟',[])
+			wx.sendMsg(userid,'命令 前n条发链接送给 群1,群2,群3 间隔3分钟\n命令 前n条发链接送给 群聊01-10 间隔3分钟',[])
 		}
 		else if(content.indexOf("查看群内任务") == 0)
 		{
@@ -603,13 +603,23 @@ async function UserMsgFilter(data) {
 					return
 				}
 				
-				var oldtime = new Date
-				var objectkeys = Object.keys(chartroomStack[chartroom])
-				var objectkeysstep = objectkeys.length
-				while(objectkeysstep--){
-					if(objectkeys[objectkeysstep][0] < oldtime.getTime() -4000)
-						chartroomStack[chartroom].splice(objectkeysstep,1);
+				if(chartroomStack[chartroom] === undefined)
+				{
+					wx.sendMsg(userid,"当前聊天室无历史任务",[])
+					return 
 				}
+				logger.info("清空过期任务")
+				if(chartroomStack[chartroom].length > 0)
+				{
+					var oldtime = new Date
+					var objectkeys = Object.keys(chartroomStack[chartroom])
+					var objectkeysstep = objectkeys.length
+					while(objectkeysstep--){
+						if(objectkeys[objectkeysstep][0] < oldtime.getTime() -4000)
+							chartroomStack[chartroom].splice(objectkeysstep,1);
+					}
+				}
+				logger.info("清空过期任务完成")
 
 				var splitstr = ""
 				for(var i = 0; i < chartroomStack[chartroom].length; i++)
@@ -632,6 +642,11 @@ async function UserMsgFilter(data) {
 				{
 					wx.sendMsg(userid,'没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！',[])
 					return
+				}
+				if(chartroomStack[chartroom] === undefined)
+				{
+					wx.sendMsg(userid,"当前聊天室无历史任务",[])
+					return 
 				}
 				for(var i = 0; i < chartroomStack[chartroom].length; i++)
 				{
@@ -708,8 +723,9 @@ async function UserMsgFilter(data) {
 			}
 			
 			var cur = new Date();
+			logger.info(cur.pattern("yyyy-MM-dd HH:mm:ss"))
 			cur.setSeconds(cur.getSeconds() + 3)
-			//logger.info(cur.pattern("yyyy-MM-dd HH:mm:ss"))
+			
 			
 			
 			for(let j = 0; j < charrooms.length; j++)
@@ -737,7 +753,8 @@ async function UserMsgFilter(data) {
 
 			
 			var userStackUseridLength = userStack[userid].length;
-			var offsettime = intervalSecond * 1000 - 3000 * charrooms.length;
+			var sleeptime = 5000;
+			var offsettime = intervalSecond * 1000 - sleeptime * charrooms.length;
 			if(offsettime < 0) offsettime = 0;
 			var i=0
 			for(i=0;i<presize && userStackUseridLength > 0 ;i++)
@@ -748,32 +765,36 @@ async function UserMsgFilter(data) {
 				
 				for(let j = 0; j < charrooms.length; j++)
 				{
-					var waittime =  i*charrooms.length*3000 + j*3000 + offsettime*i;
-					waittime += Math.ceil(Math.random()*4000)
+					var waittime =  i*charrooms.length*sleeptime + j*sleeptime + offsettime*i;
+					var randomtime = Math.ceil(Math.random()*4000)
+					waittime = waittime - randomtime/2 + randomtime
 					var starttime =  new Date(cur.getTime() + waittime);
 					
 					var fins = false
 					if( (i == presize -1 || userStackUseridLength == 1)  && j ==  charrooms.length -1 )
 						fins = true
 					var chartroomj = charrooms[j]
+					logger.info("即将发布任务")
 					!function(now,parmarmsg, finsin){ 
+						logger.info("进入闭包")
 						var chartroom = chartroomj
 						var curmsg =  JSON.parse(JSON.stringify(parmarmsg));
 						
 						var charroomid = nickname2userid[chartroom]
 						if(charroomid === undefined)
 						{
+							logger.info('没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！')
 							wx.sendMsg(userid,'没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！',[])
 							return
 						}
-						
+						logger.info("即将执行任务", chartroom, charroomid, now.pattern("yyyy-MM-dd HH:mm:ss"), chartroomStack[chartroom].length, curmsg.title)
 						var jobinfo = {}	
 						jobinfo[now.getTime()] = schedule.scheduleJob(now, function(f){
 							var time = f.getTime()
-								
+							logger.info("执行任务", chartroom, charroomid, new Date(time).pattern("yyyy-MM-dd HH:mm:ss"), chartroomStack[chartroom].length, curmsg.title)
 							
 							wx.sendAppMsg(charroomid, curmsg)
-							logger.info("执行任务", chartroom, charroomid, new Date(time), chartroomStack[chartroom].length, curmsg.title)
+							
 							
 							
 							if(finsin)
@@ -784,7 +805,7 @@ async function UserMsgFilter(data) {
 					}(starttime, msgobj, fins);
 					
 					chartroomCount[chartroomj]++;
-					logger.info("发布任务", chartroomj, starttime, chartroomStack[chartroom].length, msgobj.title);
+					logger.info("发布任务", chartroomj, starttime.pattern("yyyy-MM-dd HH:mm:ss"), chartroomStack[chartroom].length, msgobj.title);
 				}
 				userStack[userid].pop()
 				userStackUseridLength = userStack[userid].length;
@@ -825,4 +846,3 @@ async function UserRichMedia(data) {
 		logger.info('录入成功！')
 	}
 }
-
