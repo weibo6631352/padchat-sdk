@@ -597,7 +597,7 @@ async function UserMsgFilter(data) {
     if (users.indexOf(userid) > -1) {
         if(content == "帮助")
 		{
-			wx.sendMsg(userid,'你的微信号与机器人微信号以聊天的方式进行交互，命令的格式要与上边图片的一致，否则可能不认识。 \n命令格式：\n命令 前n条发链接送给 群1,群2,群3 间隔3分钟\n命令 前n条发链接送给 群聊01-10 间隔3分钟\n选项：\n*立即：有其他任务正在执行，排队等待其他任务执行完毕。 \n输入\t查看所有任务\n查看将要执行的所有任务。\n输入\t清空所有任务\n取消掉将要执行的所有任务。\n输入\t 模版  获得标准的命令例子 ',[])
+			wx.sendMsg(userid,'你与机器人以聊天的方式进行交互。 \n命令格式：\n命令 前n条发链接送给 群1,群2,群3 间隔3分钟\n命令 前n条发链接送给 群聊01-10 间隔3分钟 \n输入\t查看所有任务\n查看将要执行的所有任务。\n输入\t清空所有任务\n取消掉将要执行的所有任务。\n输入\t 模版  获得标准的命令例子 ',[])
 		}
 		else if(content == "模版")
 		{
@@ -605,14 +605,7 @@ async function UserMsgFilter(data) {
 		}
 		else if(content.indexOf("查看所有任务") == 0)
 		{
-			var splitstr = ""
-			for(var i = 0; i < worksQueue.length; i++)
-			{
-				splitstr += (i + ' ' + worksQueue[i].chartroom +' ' + worksQueue[i].msg.title + "\n") 
-			}
-			
-			splitstr+=('发送转发总数 ' + historyWroksCount)
-			wx.sendMsg(userid,splitstr,[])
+			wx.sendMsg(userid,'发送转发总数 ' + historyWroksCount + "\n队列中还有" + worksQueue.length + "个任务。",[])
 		}
 		else if(content == "清空所有任务")
 		{
