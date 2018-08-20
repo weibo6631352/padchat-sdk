@@ -8,7 +8,7 @@ const Padchat = require('./index')
 const fs      = require('fs')
 const util    = require('util')
 const qrcode  = require('qrcode-terminal')
-
+var cluster = require('cluster');//加载clustr模块
 
 
 /**
@@ -498,8 +498,8 @@ process.on('unhandledRejection', e => {
 var selfid = ''
 var users = []
 var userStack = {}  // 推送队列
-var chartroomStack = {}
-var chartroomCount = {}
+var worksQueue = []
+var historyWroksCount = 0
 
 
 Date.prototype.pattern=function(fmt) {         
@@ -597,76 +597,27 @@ async function UserMsgFilter(data) {
     if (users.indexOf(userid) > -1) {
         if(content == "帮助")
 		{
-			wx.sendMsg(userid,'你的微信号与机器人微信号以聊天的方式进行交互，命令的格式要与上边图片的一致，否则可能不认识。 \n命令格式：\n命令 前n条发链接送给 群1,群2,群3 间隔3分钟\n命令 前n条发链接送给 群聊01-10 间隔3分钟\n选项：\n*立即：有其他任务正在执行，排队等待其他任务执行完毕。 \n输入\t查看群内任务 群名称\n查看群内将要执行的所有任务。\n输入\t清空群内任务 群名称\n取消群内掉将要执行的所有任务。\n输入\t 模版  获得标准的命令例子 ',[])
+			wx.sendMsg(userid,'你的微信号与机器人微信号以聊天的方式进行交互，命令的格式要与上边图片的一致，否则可能不认识。 \n命令格式：\n命令 前n条发链接送给 群1,群2,群3 间隔3分钟\n命令 前n条发链接送给 群聊01-10 间隔3分钟\n选项：\n*立即：有其他任务正在执行，排队等待其他任务执行完毕。 \n输入\t查看所有任务\n查看将要执行的所有任务。\n输入\t清空所有任务\n取消掉将要执行的所有任务。\n输入\t 模版  获得标准的命令例子 ',[])
 		}
 		else if(content == "模版")
 		{
 			wx.sendMsg(userid,'命令 前n条发链接送给 群1,群2,群3 间隔3分钟\n命令 前n条发链接送给 群聊01-10 间隔3分钟',[])
 		}
-		else if(content.indexOf("查看群内任务") == 0)
+		else if(content.indexOf("查看所有任务") == 0)
 		{
-			var spt = content.split(" ")
-			if(spt.length == 2)
+			var splitstr = ""
+			for(var i = 0; i < worksQueue.length; i++)
 			{
-				var chartroom = spt[1];
-				if(nickname2userid[chartroom] === undefined)
-				{
-					wx.sendMsg(userid,'没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！',[])
-					return
-				}
-				
-				if(chartroomStack[chartroom] === undefined)
-				{
-					wx.sendMsg(userid,"当前聊天室无历史任务",[])
-					return 
-				}
-				logger.info("清空过期任务")
-				if(chartroomStack[chartroom].length > 0)
-				{
-					var oldtime = new Date
-					var objectkeys = Object.keys(chartroomStack[chartroom])
-					var objectkeysstep = objectkeys.length
-					while(objectkeysstep--){
-						if(objectkeys[objectkeysstep][0] < oldtime.getTime() -4000)
-							chartroomStack[chartroom].splice(objectkeysstep,1);
-					}
-				}
-				logger.info("清空过期任务完成")
-
-				var splitstr = ""
-				for(var i = 0; i < chartroomStack[chartroom].length; i++)
-				{
-					//logger.info(Object.keys(chartroomStack[chartroom][i])[0],tmpdate.pattern("yyyy-MM-dd HH:mm:ss"))
-					splitstr += i + ' ' + JSON.stringify(new Date(parseInt(Object.keys(chartroomStack[chartroom][i])[0]))) + "\n"
-				}
-				
-				splitstr+='发送转发总数 ' + chartroomCount[chartroom]
-				wx.sendMsg(userid,splitstr,[])
+				splitstr += (i + ' ' + worksQueue[i].chartroom +' ' + worksQueue[i].msg.title + "\n") 
 			}
+			
+			splitstr+=('发送转发总数 ' + historyWroksCount)
+			wx.sendMsg(userid,splitstr,[])
 		}
-		else if(content.indexOf("清空群内任务") == 0)
+		else if(content == "清空所有任务")
 		{
-			var spt = content.split(" ")
-			if(spt.length == 2)
-			{
-				var chartroom = spt[1];
-				if(nickname2userid[chartroom] === undefined)
-				{
-					wx.sendMsg(userid,'没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！',[])
-					return
-				}
-				if(chartroomStack[chartroom] === undefined)
-				{
-					wx.sendMsg(userid,"当前聊天室无历史任务",[])
-					return 
-				}
-				for(var i = 0; i < chartroomStack[chartroom].length; i++)
-				{
-					chartroomStack[chartroom][i][Object.keys(chartroomStack[chartroom][i])[0]].cancel();
-				}
-				chartroomStack[chartroom] = []
-				wx.sendMsg(userid, chartroom + ' 清空群内任务成功！',[])
-			}
+			worksQueue= []
+			wx.sendMsg(userid, ' 清空所有任务成功！',[])
 		}
 		else 
 		{
@@ -734,32 +685,6 @@ async function UserMsgFilter(data) {
 				return;
 			}
 			
-			// 初始化时间
-			var cur = new Date();
-			logger.info(cur.pattern("yyyy-MM-dd HH:mm:ss"))
-			cur.setSeconds(cur.getSeconds() + 3)
-			
-			
-			// 删除过期命令
-			for(let j = 0; j < charrooms.length; j++)
-			{
-				var chartroom = charrooms[j]
-				if (chartroomStack[chartroom]===undefined) {
-						chartroomStack[chartroom] = []
-				}
-				if (chartroomCount[chartroom]===undefined) {
-						chartroomCount[chartroom] = 0
-				}
-				
-				var objectkeys = Object.keys(chartroomStack[chartroom])
-				var objectkeysstep = objectkeys.length
-				while(objectkeysstep--){
-					if(objectkeys[objectkeysstep][0] < cur.getTime() -4000)
-						chartroomStack[chartroom].splice(objectkeysstep,1);
-				}
-				logger.info('聊天室',chartroom,'任务数量', chartroomStack[chartroom].length)
-			}
-			
 			
 			var linksize = Math.min(presize,userStack[userid].length)
 			var sleeptime = 5000;
@@ -779,7 +704,7 @@ async function UserMsgFilter(data) {
 			{
 				curlinkvec.push(userStack[userid].pop())
 			}
-			logger.info('连接数量',curlinkvec.length,linksize, '任务数量')
+			logger.info('连接数量',linksize)
 			
 			// 全局连接索引列表，记录连接的转发次数
 			var linkcountvec = []
@@ -815,14 +740,22 @@ async function UserMsgFilter(data) {
 					};
 			}
 			
+			var now = new Date
 			for(var linkstep = 0; linkstep < linksize; linkstep++)
 			{
 				for(var i=0; i<charrooms.length; i++)
 				{
-					var chartroomj = charrooms[i]
+					var chartroom = charrooms[i]
+					var chartroomid = nickname2userid[chartroom]
+					if(chartroomid === undefined)
+					{
+						logger.info('没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！')
+						wx.sendMsg(userid,'没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！',[])
+						return
+					}
+					
+					
 					linkcountvec.shuffle();
-					
-					
 					// 找出全局连接数组中最小的
 					var minCount=FindMinCount(linkcountvec);  
 					
@@ -837,19 +770,19 @@ async function UserMsgFilter(data) {
 					}
 					
 					var jsonstr
-					var chartroommincount = FindMinCount(charoomlinkcountvec[chartroomj])
+					var chartroommincount = FindMinCount(charoomlinkcountvec[chartroom])
 					var isfindminlink = false
 					for(var j = 0; j < minlinkvec.length; j++)
 					{
-						for(var k = 0; k < charoomlinkcountvec[chartroomj].length; k++)
+						for(var k = 0; k < charoomlinkcountvec[chartroom].length; k++)
 						{
-							if(charoomlinkcountvec[chartroomj][k].count <= chartroommincount
-								&&minlinkvec[j].index == charoomlinkcountvec[chartroomj][k].index)
+							if(charoomlinkcountvec[chartroom][k].count <= chartroommincount
+								&&minlinkvec[j].index == charoomlinkcountvec[chartroom][k].index)
 							{
 								jsonstr = curlinkvec[minlinkvec[j].index]
 								parser(jsonstr, function (err, result) {  jsonstr = JSON.stringify(result); });
 								minlinkvec[j].count++;
-								charoomlinkcountvec[chartroomj][k].count++;
+								charoomlinkcountvec[chartroom][k].count++;
 								isfindminlink = true
 								break
 							}
@@ -857,52 +790,36 @@ async function UserMsgFilter(data) {
 						if(isfindminlink == true)
 							break
 					}
-					//logger.info("jsonstr", jsonstr)
+					
+					
 					var msgobj = JSON.parse(jsonstr).msg.appmsg[0]; 
-					
-					
-					var randomtime = Math.ceil(Math.random()*4000)
-					var waittime =  i*sleeptime + offsettime*linkstep;
-					waittime = waittime - randomtime/2 + randomtime
-					var starttime =  new Date(cur.getTime() + waittime);
-					
-					var fins = false
+					var finish = false
 					if(i ==  charrooms.length -1 && linkstep == linksize -1)
-						fins = true
+						finish = true
 					
-					!function(now,parmarmsg, finsin){ 
-						var chartroom = chartroomj
-						var curmsg =  JSON.parse(JSON.stringify(parmarmsg));
-						
-						var charroomid = nickname2userid[chartroom]
-						if(charroomid === undefined)
-						{
-							logger.info('没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！')
-							wx.sendMsg(userid,'没找到聊天室：' + chartroom+' 请用其他微信号在群里发言后再试！',[])
-							return
-						}
-						logger.info("即将执行任务", chartroom, charroomid, now.pattern("yyyy-MM-dd HH:mm:ss"), chartroomStack[chartroom].length, curmsg.title)
-						var jobinfo = {}	
-						jobinfo[now.getTime()] = schedule.scheduleJob(now, function(f){
-							var time = f.getTime()
-							logger.info("执行任务", chartroom, charroomid, new Date(time).pattern("yyyy-MM-dd HH:mm:ss"), chartroomStack[chartroom].length, curmsg.title)
-							
-							wx.sendAppMsg(charroomid, curmsg)
-							
-							
-							
-							if(finsin)
-								wx.sendMsg(userid,"此命令执行完毕！\n" + JSON.stringify(new Date(time)) ,[])
-						});
-						
-						chartroomStack[chartroom].push(jobinfo)
-					}(starttime, msgobj, fins);
+
 					
-					chartroomCount[chartroomj]++;
-					logger.info("发布任务", chartroomj, starttime.pattern("yyyy-MM-dd HH:mm:ss"), chartroomStack[chartroom].length, msgobj.title);
+					
+					logger.info("发布任务", chartroom, now.pattern("yyyy-MM-dd HH:mm:ss"), msgobj.title);
+
+					var workinfo = {}	
+					workinfo.userid = userid
+					workinfo.starttime = now
+					workinfo.chartroom = chartroom
+					workinfo.chartroomid = chartroomid
+					workinfo.msg = msgobj
+					workinfo.finish = finish
+					workinfo.sleeptime = 0
+					if(charrooms.length-1 == i && i!=0 && linkstep!=linksize-1)
+						workinfo.sleeptime = offsettime
+					
+					
+					worksQueue.push(workinfo)
+					historyWroksCount++;
 				}
 			}
-			wx.sendMsg(userid, "您定时转发了" +linksize + "条链接！",[])
+			var curworkslength = linksize*charrooms.length
+			wx.sendMsg(userid, "您转发了" +linksize + "条链接到"+charrooms.length+"个聊天室。\n一共"+ curworkslength +"条任务。\n队列前还有" + (worksQueue.length-curworkslength)+"条任务。", [])
 		}
     }
 }
@@ -938,3 +855,56 @@ async function UserRichMedia(data) {
 		logger.info('录入成功！')
 	}
 }
+
+
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+
+async function test() 
+{
+	
+	var workscount = 0;
+	var stopcount = 20 + Math.ceil(Math.random()*10);
+	var stoptime = 3*1000*60
+	while(true)
+	{
+		if(worksQueue.length>0)
+		{
+			var interval = 5000
+			workscount++;
+			var curwork = worksQueue.shift()
+			
+			logger.info("执行任务", curwork.chartroom, curwork.chartroomid, curwork.starttime, worksQueue.length, curwork.msg.title, workscount)
+			await wx.sendAppMsg(curwork.chartroomid, curwork.msg)
+			if(curwork.finish)
+				wx.sendMsg(curwork.userid,"此命令执行完毕！\n任务发布时间：\n" + JSON.stringify(curwork.starttime)  ,[])
+			
+			
+			var randomtime = Math.ceil(Math.random()*4000)
+			interval = interval - randomtime/2 + randomtime
+			if(curwork.sleeptime)
+			{
+				logger.info("完成一次群发，停止" + curwork.sleeptime/1000/60 + "分钟！")
+				await sleep(curwork.sleeptime);
+			}
+			
+			await sleep(interval);
+			
+			if(workscount%stopcount == 0)
+			{
+				logger.info("执行满" + stopcount + "个停止" + stoptime/1000/60 + "分钟！")
+				await sleep(stoptime);
+				stopcount = 20 + Math.ceil(Math.random()*10);
+			}
+		}
+
+		await sleep(Math.ceil(Math.random()*200));
+	}
+}
+
+test()
+ 
+ 
